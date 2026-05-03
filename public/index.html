@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pokemon Cache Demo</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 16px;
+    background: #f5f7fa;
+    color: #1a202c;
+    line-height: 1.5;
+  }
+  h1 { margin: 0 0 8px; font-size: 1.75rem; }
+  .lead { color: #4a5568; margin: 0 0 24px; }
+  h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #718096;
+    margin: 0 0 12px;
+  }
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    margin-bottom: 16px;
+  }
+  form { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: #4299e1; }
+  button {
+    padding: 10px 20px;
+    border: none;
+    background: #4299e1;
+    color: white;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover:not(:disabled) { background: #3182ce; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .result {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+  }
+  .result-info { flex: 1; }
+  .pokemon-name {
+    font-size: 1.5rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    margin: 0 0 4px;
+  }
+  .pokemon-meta { color: #4a5568; font-size: 0.9rem; }
+  .pokemon-types { display: flex; gap: 6px; margin-top: 10px; }
+  .type-chip {
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: #edf2f7;
+    font-size: 0.8rem;
+    text-transform: capitalize;
+    color: #2d3748;
+  }
+  .sprite {
+    width: 96px;
+    height: 96px;
+    image-rendering: pixelated;
+  }
+  .perf { text-align: right; min-width: 120px; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge.api { background: #fed7aa; color: #9a3412; }
+  .badge.cache { background: #bbf7d0; color: #166534; }
+  .latency {
+    font-size: 2.25rem;
+    font-weight: 700;
+    margin: 6px 0 0;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .latency .unit { font-size: 0.9rem; color: #718096; font-weight: 400; margin-left: 4px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    padding: 6px 14px;
+    background: #edf2f7;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    text-transform: capitalize;
+    transition: background 0.15s;
+  }
+  .chip:hover { background: #e2e8f0; }
+
+  .history-row {
+    display: grid;
+    grid-template-columns: 110px 70px 1fr 60px;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .history-row:last-child { border-bottom: none; }
+  .history-name { text-transform: capitalize; font-weight: 500; }
+  .history-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+  .history-bar > span { display: block; height: 100%; border-radius: 3px; }
+  .history-bar > span.api { background: #fb923c; }
+  .history-bar > span.cache { background: #4ade80; }
+  .history-ms { color: #4a5568; font-variant-numeric: tabular-nums; text-align: right; font-size: 0.9rem; }
+
+  .empty { color: #a0aec0; font-style: italic; font-size: 0.9rem; }
+  .error { color: #c53030; }
+</style>
+</head>
+<body>
+<h1>Pokemon Cache Demo</h1>
+<p class="lead">La primera llamada pega a la PokeAPI. Las siguientes salen de Redis y son mucho más rápidas. TTL del cache: 60s.</p>
+
+<div class="card">
+  <form id="form">
+    <input type="text" id="name" placeholder="ej: pikachu, charizard, 25" required autocomplete="off" autofocus>
+    <button type="submit" id="btn">Buscar</button>
+  </form>
+</div>
+
+<div class="card" id="result-card" style="display:none"></div>
+
+<div class="card">
+  <h2>Buscados antes (click para refetch)</h2>
+  <div class="chips" id="chips"><span class="empty">aún ninguno</span></div>
+</div>
+
+<div class="card">
+  <h2>Historial de la sesión</h2>
+  <div id="history"><span class="empty">aún vacío</span></div>
+</div>
+
+<script>
+  const form = document.getElementById('form');
+  const input = document.getElementById('name');
+  const btn = document.getElementById('btn');
+  const resultCard = document.getElementById('result-card');
+  const chipsEl = document.getElementById('chips');
+  const historyEl = document.getElementById('history');
+
+  const history = [];
+
+  async function fetchPokemon(name) {
+    btn.disabled = true;
+    try {
+      const res = await fetch('/pokemon/' + encodeURIComponent(name));
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'request failed');
+      showResult(json);
+      history.unshift({ name: json.data.name, source: json.source, ms: json.elapsedMs });
+      if (history.length > 10) history.pop();
+      renderHistory();
+      await loadRecent();
+    } catch (err) {
+      resultCard.style.display = 'block';
+      resultCard.innerHTML = '<div class="error">Error: ' + err.message + '</div>';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  }
+
+  function showResult({ source, elapsedMs, data }) {
+    resultCard.style.display = 'block';
+    const sprite = data.sprite
+      ? '<img class="sprite" src="' + escapeHtml(data.sprite) + '" alt="' + escapeHtml(data.name) + '">'
+      : '';
+    resultCard.innerHTML = `
+      <div class="result">
+        ${sprite}
+        <div class="result-info">
+          <div class="pokemon-name">${escapeHtml(data.name)}</div>
+          <div class="pokemon-meta">#${data.id} · altura ${data.height} · peso ${data.weight}</div>
+          <div class="pokemon-types">${data.types.map(t => '<span class="type-chip">' + escapeHtml(t) + '</span>').join('')}</div>
+        </div>
+        <div class="perf">
+          <span class="badge ${source}">${source}</span>
+          <p class="latency">${elapsedMs}<span class="unit">ms</span></p>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderHistory() {
+    if (history.length === 0) {
+      historyEl.innerHTML = '<span class="empty">aún vacío</span>';
+      return;
+    }
+    const max = Math.max(...history.map(h => h.ms), 1);
+    historyEl.innerHTML = history.map(h => `
+      <div class="history-row">
+        <span class="history-name">${escapeHtml(h.name)}</span>
+        <span class="badge ${h.source}">${h.source}</span>
+        <span class="history-bar"><span class="${h.source}" style="width:${Math.max(2, (h.ms / max) * 100)}%"></span></span>
+        <span class="history-ms">${h.ms} ms</span>
+      </div>
+    `).join('');
+  }
+
+  async function loadRecent() {
+    const res = await fetch('/recent');
+    const { names } = await res.json();
+    if (!names || names.length === 0) {
+      chipsEl.innerHTML = '<span class="empty">aún ninguno</span>';
+      return;
+    }
+    chipsEl.innerHTML = names
+      .map(n => '<span class="chip" data-name="' + escapeHtml(n) + '">' + escapeHtml(n) + '</span>')
+      .join('');
+    chipsEl.querySelectorAll('.chip').forEach(el => {
+      el.addEventListener('click', () => {
+        input.value = el.dataset.name;
+        fetchPokemon(el.dataset.name);
+      });
+    });
+  }
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    const v = input.value.trim();
+    if (v) fetchPokemon(v);
+  });
+
+  loadRecent();
+</script>
+</body>
+</html>

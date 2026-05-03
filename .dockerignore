@@ -1,0 +1,8 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+aws
+scripts
+*.zip
+docker-compose.yml

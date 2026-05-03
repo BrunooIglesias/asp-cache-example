@@ -1,0 +1,7 @@
+[
+  { "Namespace": "aws:elasticbeanstalk:environment", "OptionName": "EnvironmentType", "Value": "SingleInstance" },
+  { "Namespace": "aws:elasticbeanstalk:environment", "OptionName": "ServiceRole", "Value": "LabRole" },
+  { "Namespace": "aws:autoscaling:launchconfiguration", "OptionName": "IamInstanceProfile", "Value": "LabInstanceProfile" },
+  { "Namespace": "aws:ec2:instances", "OptionName": "InstanceTypes", "Value": "t3.micro" },
+  { "Namespace": "aws:elasticbeanstalk:application:environment", "OptionName": "PORT", "Value": "3000" }
+]
